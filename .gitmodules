@@ -1,0 +1,3 @@
+[submodule "libraries/base64_arduino"]
+	path = libraries/base64_arduino
+	url = git@github.com:Densaugeo/base64_arduino.git
