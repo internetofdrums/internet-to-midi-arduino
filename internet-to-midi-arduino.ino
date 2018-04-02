@@ -6,12 +6,11 @@ const unsigned int kDataPin = 11;
 const unsigned long kMidiBaudRate = 31250;
 const unsigned short int kSecondsPerMinute = 60;
 const unsigned short int kMilliSecondsPerSecond = 1000;
-const unsigned char kBeatsPerMinute = 120;
+const unsigned char kBeatsPerMinute = 117;
 const unsigned char kBeatsPerBar = 4;
 const unsigned char kSubdivisionsPerBeat = 4;
 const unsigned char kSubdivisionsPerBar = kBeatsPerBar * kSubdivisionsPerBeat;
-const unsigned char kNumberOfInstruments = 16;
-const unsigned char kDataPartsPerBeat = 2;
+const unsigned char kNumberOfInstruments = 12;
 const unsigned char kLedPins[4] = {13, 12, 8, 7};
 const unsigned char kNumberOfLeds = sizeof(kLedPins) / sizeof(*kLedPins);
 const signed char kMidiNoteOnCommand = 0x99; // Channel 10 note on
@@ -24,8 +23,8 @@ unsigned int kMilliSecondsPerBar = kSubdivisionsPerBar * kMilliSecondsPerSubdivi
 unsigned long milliSecondsPassed = 0;
 unsigned char lastPlayedSubdivision = kSubdivisionsPerBar - 1; // The last subdivision of the bar
 
-unsigned char encodedPattern[] = "f38AAH9/AAAAAH9/AAAAAH9/AAB/fwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf38AAAAAAAAAAAAAAAAAAH9/AAAAAAAAAAAAAAAAAAB/fwAAAAAAAAAAAAAAAAAAf38AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf38AAH9/AAB/fwAAf38AAH9/AAB/fwAAf38AAH9/AAAAAAAAAAB/fwAAAAAAAH9/AAAAAAAAf38AAAAAf38AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-signed char pattern[512];
+unsigned char encodedPattern[] = "fwAAAH8AAAB/AAAAfwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfwAAAAAAAAB/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfwB/AH8AfwB/AH8AfwB/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/AAAAAAAAAH8AAAAAAAAAAAAAAAAAAAAAAAAA";
+signed char pattern[192];
 
 void setup() {
   Serial.begin(kMidiBaudRate);
@@ -61,9 +60,8 @@ void playSubdivision() {
   
   // Send note-on message for each note, collect LED information
   for (char instrumentIndex = 0; instrumentIndex < kNumberOfInstruments; instrumentIndex++) {
-    unsigned int patternIndex = calculatePatternIndex(currentSubdivision, instrumentIndex);
-    signed char noteLength = pattern[patternIndex];
-    signed char velocity = pattern[patternIndex + 1];
+    unsigned int patternIndex = (kSubdivisionsPerBar * instrumentIndex) + currentSubdivision;
+    signed char velocity = pattern[patternIndex];
     
     sendMidiNoteOn(instrumentIndex, velocity);
     
@@ -78,18 +76,13 @@ void playSubdivision() {
   
   // Send note off message for each note
   for (char instrumentIndex = 0; instrumentIndex < kNumberOfInstruments; instrumentIndex++) {
-    unsigned int patternIndex = calculatePatternIndex(currentSubdivision, instrumentIndex);
-    signed char noteLength = pattern[patternIndex];
-    signed char velocity = pattern[patternIndex + 1];
+    unsigned int patternIndex = (kSubdivisionsPerBar * instrumentIndex) + currentSubdivision;
+    signed char velocity = pattern[patternIndex];
     
     sendMidiNoteOff(instrumentIndex, velocity);
   }
   
   lastPlayedSubdivision = currentSubdivision;
-}
-
-unsigned int calculatePatternIndex(unsigned char currentSubdivision, char instrumentIndex) {
-  return (currentSubdivision * kDataPartsPerBeat) + (instrumentIndex * (kNumberOfInstruments * kDataPartsPerBeat));
 }
 
 void sendMidiNoteOn(signed char instrumentIndex, signed char velocity) {
@@ -118,4 +111,3 @@ void showLeds(unsigned int data) {
   shiftOut(kDataPin, kClockPin, MSBFIRST, data01);
   digitalWrite(kLatchPin, HIGH);
 }
-
