@@ -1,3 +1,5 @@
+#include <SPI.h>
+#include <Ethernet.h>
 #include "libraries/base64_arduino/src/base64.hpp"
 
 const unsigned int kLatchPin = 8;
@@ -23,24 +25,86 @@ unsigned int kMilliSecondsPerBar = kSubdivisionsPerBar * kMilliSecondsPerSubdivi
 unsigned long milliSecondsPassed = 0;
 unsigned char lastPlayedSubdivision = kSubdivisionsPerBar - 1; // The last subdivision of the bar
 
-unsigned char encodedPattern[] = "fwAAAH8AAAB/AAAAfwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfwAAAAAAAAB/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfwB/AH8AfwB/AH8AfwB/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/AAAAAAAAAH8AAAAAAAAAAAAAAAAAAAAAAAAA";
+unsigned int encodedPatternLength = 256;
+char bufferingPattern[256];
+char encodedPattern[256];
 signed char pattern[192];
+
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+char server[] = "api.internetofdrums.com";
+IPAddress ip(192, 168, 1, 177);
+EthernetClient client;
+
+unsigned long lastConnectionTime = 0;
+const unsigned long postingInterval = 2L * 1000L;
+
+unsigned int numberOfControlCharactersInARow = 0;
+boolean reachedResponseBody = false;
+unsigned int bodyReadIndex = 0;
 
 void setup() {
   Serial.begin(kMidiBaudRate);
 
-  decode_base64(encodedPattern, pattern);
-  
   //pinMode(kLatchPin, OUTPUT);
   //pinMode(kClockPin, OUTPUT);
   //pinMode(kDataPin, OUTPUT);
+
+  if (Ethernet.begin(mac) == 0) {
+    Ethernet.begin(mac, ip);
+  }
+
+  delay(1000);
 }
 
 void loop() {
   milliSecondsPassed = millis();
-  
+
   if (shouldPlaySubdivision()) {
     playSubdivision();
+  }
+
+  if (client.available()) {
+    char c = client.read();
+
+    if (reachedResponseBody) {
+      encodedPattern[bodyReadIndex] = c;
+      bodyReadIndex++;
+    }
+
+    if (c == '\r' || c == '\n') {
+      numberOfControlCharactersInARow++;
+    } else {
+      numberOfControlCharactersInARow = 0;
+    }
+
+    if (numberOfControlCharactersInARow == 4) {
+      reachedResponseBody = true;
+    }
+
+    if (bodyReadIndex == encodedPatternLength) {
+      decode_base64(encodedPattern, pattern);
+    }
+  }
+
+  if (milliSecondsPassed - lastConnectionTime > postingInterval) {
+    getNewPattern();
+  }
+}
+
+void getNewPattern() {
+  client.stop();
+
+  numberOfControlCharactersInARow = 0;
+  reachedResponseBody = false;
+  bodyReadIndex = 0;
+
+  if (client.connect(server, 80)) {
+    client.println("DELETE /1.0/patterns/head/pattern HTTP/1.1");
+    client.println("Host: api.internetofdrums.com");
+    client.println("Connection: close");
+    client.println();
+
+    lastConnectionTime = millis();
   }
 }
 
@@ -55,33 +119,33 @@ bool shouldShowLed(char velocity) {
 }
 
 void playSubdivision() {
-  unsigned char currentSubdivision = (lastPlayedSubdivision + 1) % kSubdivisionsPerBar; 
+  unsigned char currentSubdivision = (lastPlayedSubdivision + 1) % kSubdivisionsPerBar;
   unsigned int data = 0;
-  
+
   // Send note-on message for each note, collect LED information
   for (char instrumentIndex = 0; instrumentIndex < kNumberOfInstruments; instrumentIndex++) {
     unsigned int patternIndex = (kSubdivisionsPerBar * instrumentIndex) + currentSubdivision;
     signed char velocity = pattern[patternIndex];
-    
+
     sendMidiNoteOn(instrumentIndex, velocity);
-    
+
     if (shouldShowLed(velocity)) {
       bitSet(data, instrumentIndex);
     }
   }
-  
+
   //showLeds(data);
-  
+
   delay(kMilliSecondsPerSubdivision / 2);
-  
+
   // Send note off message for each note
   for (char instrumentIndex = 0; instrumentIndex < kNumberOfInstruments; instrumentIndex++) {
     unsigned int patternIndex = (kSubdivisionsPerBar * instrumentIndex) + currentSubdivision;
     signed char velocity = pattern[patternIndex];
-    
+
     sendMidiNoteOff(instrumentIndex, velocity);
   }
-  
+
   lastPlayedSubdivision = currentSubdivision;
 }
 
@@ -102,10 +166,10 @@ void sendMidiMessage(signed char command, signed char instrumentIndex, signed ch
 void showLeds(unsigned int data) {
   // Get the first byte of the data
   byte data01 = data & 0xff;
-  
+
   // Get the second byte of the data
   byte data02 = (data >> 8) & 0xff;
-  
+
   digitalWrite(kLatchPin, LOW);
   shiftOut(kDataPin, kClockPin, MSBFIRST, data02);
   shiftOut(kDataPin, kClockPin, MSBFIRST, data01);
