@@ -36,7 +36,7 @@ IPAddress ip(192, 168, 1, 177);
 EthernetClient client;
 
 unsigned long lastConnectionTime = 0;
-const unsigned long postingInterval = 2L * 1000L;
+const unsigned long postingInterval = 5L * 1000L;
 
 unsigned int numberOfControlCharactersInARow = 0;
 boolean reachedResponseBody = false;
@@ -54,6 +54,12 @@ void setup() {
   }
 
   delay(1000);
+
+  client.stop();
+
+  if (client.connect(server, 80)) {
+    getNewPattern();
+  }
 }
 
 void loop() {
@@ -92,20 +98,15 @@ void loop() {
 }
 
 void getNewPattern() {
-  client.stop();
-
   numberOfControlCharactersInARow = 0;
   reachedResponseBody = false;
   bodyReadIndex = 0;
 
-  if (client.connect(server, 80)) {
-    client.println("DELETE /1.0/patterns/head/pattern HTTP/1.1");
-    client.println("Host: api.internetofdrums.com");
-    client.println("Connection: close");
-    client.println();
+  client.println("DELETE /1.0/patterns/head/pattern HTTP/1.1");
+  client.println("Host: api.internetofdrums.com");
+  client.println();
 
-    lastConnectionTime = millis();
-  }
+  lastConnectionTime = millis();
 }
 
 bool shouldPlaySubdivision() {
