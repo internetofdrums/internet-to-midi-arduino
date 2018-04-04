@@ -2,9 +2,9 @@
 #include <Ethernet.h>
 #include "libraries/base64_arduino/src/base64.hpp"
 
-const unsigned int kLatchPin = 8;
-const unsigned int kClockPin = 12;
-const unsigned int kDataPin = 11;
+const int kLatchPin = 8;
+const int kClockPin = 12;
+const int kDataPin = 11;
 const unsigned long kMidiBaudRate = 31250;
 const unsigned short int kSecondsPerMinute = 60;
 const unsigned short int kMilliSecondsPerSecond = 1000;
@@ -26,7 +26,6 @@ unsigned long milliSecondsPassed = 0;
 unsigned char lastPlayedSubdivision = kSubdivisionsPerBar - 1; // The last subdivision of the bar
 
 unsigned int encodedPatternLength = 256;
-char bufferingPattern[256];
 char encodedPattern[256];
 signed char pattern[192];
 
@@ -45,9 +44,9 @@ unsigned int bodyReadIndex = 0;
 void setup() {
   Serial.begin(kMidiBaudRate);
 
-  //pinMode(kLatchPin, OUTPUT);
-  //pinMode(kClockPin, OUTPUT);
-  //pinMode(kDataPin, OUTPUT);
+  pinMode(kLatchPin, OUTPUT);
+  pinMode(kClockPin, OUTPUT);
+  pinMode(kDataPin, OUTPUT);
 
   if (Ethernet.begin(mac) == 0) {
     Ethernet.begin(mac, ip);
@@ -115,10 +114,6 @@ bool shouldPlaySubdivision() {
   return closestPassedSubdivision != lastPlayedSubdivision;
 }
 
-bool shouldShowLed(char velocity) {
-  return velocity > 0;
-}
-
 void playSubdivision() {
   unsigned char currentSubdivision = (lastPlayedSubdivision + 1) % kSubdivisionsPerBar;
   unsigned int data = 0;
@@ -135,9 +130,9 @@ void playSubdivision() {
     }
   }
 
-  //showLeds(data);
+  showLeds(data);
 
-  delay(kMilliSecondsPerSubdivision / 2);
+  delay(kMilliSecondsPerSubdivision / 8);
 
   // Send note off message for each note
   for (char instrumentIndex = 0; instrumentIndex < kNumberOfInstruments; instrumentIndex++) {
@@ -162,6 +157,10 @@ void sendMidiMessage(signed char command, signed char instrumentIndex, signed ch
   Serial.write(command);
   Serial.write(kLowestNote + instrumentIndex);
   Serial.write(velocity);
+}
+
+bool shouldShowLed(char velocity) {
+  return velocity > 0;
 }
 
 void showLeds(unsigned int data) {
