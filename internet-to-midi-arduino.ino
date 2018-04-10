@@ -3,8 +3,8 @@
 #include "libraries/base64_arduino/src/base64.hpp"
 
 const int kLatchPin = 8;
-const int kClockPin = 12;
-const int kDataPin = 11;
+const int kClockPin = 15;
+const int kDataPin = 14;
 const unsigned long kMidiBaudRate = 31250;
 const unsigned short int kSecondsPerMinute = 60;
 const unsigned short int kMilliSecondsPerSecond = 1000;
