@@ -8,6 +8,8 @@ const int kClockPin = 15; // Pin A1
 const int kSetUpLightPin = 5;
 const int kServerConnectedLightPin = 6;
 const int kPatternDownloadedPin = 7;
+const int kBLinkDelayInMilliseconds = 150;
+const int kRingAnimationDelayInMilliseconds = 75;
 const unsigned long kMidiBaudRate = 31250;
 const unsigned short int kSecondsPerMinute = 60;
 const unsigned short int kMilliSecondsPerSecond = 1000;
@@ -16,6 +18,7 @@ const unsigned char kBeatsPerBar = 4;
 const unsigned char kSubdivisionsPerBeat = 4;
 const unsigned char kSubdivisionsPerBar = kBeatsPerBar * kSubdivisionsPerBeat;
 const unsigned char kNumberOfInstruments = 12;
+const unsigned char kNumberOfRingLeds = 16;
 const signed char kMidiNoteOnCommand = 0x99; // Channel 10 note on
 const signed char kMidiNoteOffCommand = 0x89; // Channel 10 note off
 const signed char kDrumNotes[] = {
@@ -79,38 +82,35 @@ unsigned int bodyReadIndex = 0;
 void setup() {
   Serial.begin(kMidiBaudRate);
 
-  // Set light output ports
+  // Setup light outputs
   pinMode(kLatchPin, OUTPUT);
   pinMode(kClockPin, OUTPUT);
   pinMode(kDataPin, OUTPUT);
-
-  // Set LED output ports
   pinMode(kSetUpLightPin, OUTPUT);
   pinMode(kServerConnectedLightPin, OUTPUT);
   pinMode(kPatternDownloadedPin, OUTPUT);
 
-  // Show device is setting up
-  digitalWrite(kSetUpLightPin, HIGH);
+  switchSetupLightOn();
+  blinkServerConnectedLight(5);
 
   // Try to connect to internet using DHCP
   if (Ethernet.begin(mac) == 0) {
+    if (Ethernet.hardwareStatus() == EthernetNoHardware || Ethernet.linkStatus() == LinkOFF) {
+      blinkServerConnectedLight(100);
+      exit(0);
+    }
+
     // Failed, try connecting with IP address and DNS
     Ethernet.begin(mac, ip, dns);
+  } else {
+    switchServerConnectedLightOn();
   }
 
   // Give the ethernet shield a second to initialize
-  delay(1000);
+  showLedRingAnimation();
 
-  client.stop();
-
-  if (client.connect(server, 80)) {
-    // Show device has connected to server
-    digitalWrite(kServerConnectedLightPin, HIGH);
-    getNewPattern();
-  } else {
-    // Show device did not get connection to server
-    digitalWrite(kServerConnectedLightPin, LOW);
-  }
+  // Get the first pattern
+  getNewPattern();
 }
 
 void loop() {
@@ -121,9 +121,6 @@ void loop() {
   }
 
   if (client.available()) {
-    // Show device has gotten pattern
-    digitalWrite(kPatternDownloadedPin, HIGH);
-
     char c = client.read();
 
     if (reachedResponseBody) {
@@ -144,12 +141,12 @@ void loop() {
     if (bodyReadIndex == encodedPatternLength) {
       decode_base64(encodedPattern, pattern);
     }
+
+    switchPatternDownloadedLightOff();
   }
 
   if (milliSecondsPassed - lastConnectionTime > postingInterval) {
-    // Show device is getting pattern
-    digitalWrite(kPatternDownloadedPin, LOW);
-
+    switchPatternDownloadedLightOn();
     getNewPattern();
   }
 }
@@ -159,9 +156,16 @@ void getNewPattern() {
   reachedResponseBody = false;
   bodyReadIndex = 0;
 
-  client.println("DELETE /1.0/patterns/head/pattern HTTP/1.1");
-  client.println("Host: api.internetofdrums.com");
-  client.println();
+  client.stop();
+
+  if (client.connect(server, 80)) {
+    client.println("DELETE /1.0/patterns/head/pattern HTTP/1.1");
+    client.println("Host: api.internetofdrums.com");
+    client.println();
+  } else {
+    blinkPatternDownloadedLight(2);
+    getNewPattern();
+  }
 
   lastConnectionTime = millis();
 }
@@ -232,4 +236,54 @@ void showLeds(unsigned int data) {
   shiftOut(kDataPin, kClockPin, MSBFIRST, data02);
   shiftOut(kDataPin, kClockPin, MSBFIRST, data01);
   digitalWrite(kLatchPin, HIGH);
+}
+
+void showLedRingAnimation() {
+  unsigned int data = 0;
+
+  for (char ledIndex = 0; ledIndex < kNumberOfRingLeds; ledIndex++) {
+    bitSet(data, ledIndex);
+    showLeds(data);
+    delay(kRingAnimationDelayInMilliseconds);
+  }
+
+  showLeds(0);
+}
+
+void switchSetupLightOn() {
+  digitalWrite(kSetUpLightPin, HIGH);
+}
+
+void switchServerConnectedLightOn() {
+  digitalWrite(kServerConnectedLightPin, HIGH);
+}
+
+void switchPatternDownloadedLightOn() {
+  digitalWrite(kPatternDownloadedPin, HIGH);
+}
+
+void switchServerConnectedLightOff() {
+  digitalWrite(kServerConnectedLightPin, LOW);
+}
+
+void switchPatternDownloadedLightOff() {
+  digitalWrite(kPatternDownloadedPin, LOW);
+}
+
+void blinkServerConnectedLight(int numberOfBlinks) {
+  for (char blinkIndex = 0; blinkIndex < numberOfBlinks; blinkIndex++) {
+    switchServerConnectedLightOn();
+    delay(kBLinkDelayInMilliseconds);
+    switchServerConnectedLightOff();
+    delay(kBLinkDelayInMilliseconds);
+  }
+}
+
+void blinkPatternDownloadedLight(int numberOfBlinks) {
+  for (char blinkIndex = 0; blinkIndex < numberOfBlinks; blinkIndex++) {
+    switchPatternDownloadedLightOn();
+    delay(kBLinkDelayInMilliseconds);
+    switchPatternDownloadedLightOff();
+    delay(kBLinkDelayInMilliseconds);
+  }
 }
