@@ -73,7 +73,7 @@ IPAddress dns(192, 168, 1, 1);
 EthernetClient client;
 
 unsigned long lastConnectionTime = 0;
-const unsigned long postingInterval = 5L * 1000L;
+const unsigned long pollingInterval = 8L * 1000L;
 
 unsigned int numberOfControlCharactersInARow = 0;
 boolean reachedResponseBody = false;
@@ -145,7 +145,7 @@ void loop() {
     switchPatternDownloadedLightOff();
   }
 
-  if (milliSecondsPassed - lastConnectionTime > postingInterval) {
+  if (milliSecondsPassed - lastConnectionTime > pollingInterval) {
     switchPatternDownloadedLightOn();
     getNewPattern();
   }
